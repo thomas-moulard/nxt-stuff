@@ -1,0 +1,213 @@
+const int vitesse_pince = 30;
+
+// Initialisation du tribot
+void initialisation ()
+{
+   SetSensorTouch (IN_1);
+   SetSensorSound (IN_2);
+   SetSensorLight (IN_3);
+   SetSensorLowspeed (IN_4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Fonctions utiles.                                                          //
+////////////////////////////////////////////////////////////////////////////////
+void avance (int v)
+{
+   OnFwd (OUT_BC, v);
+}
+
+void recule (int v)
+{
+   OnRev (OUT_BC, v);
+}
+
+void stop_roues ()
+{
+   Off (OUT_BC);
+}
+
+void tournerGauche (int v)
+{
+   OnFwd (OUT_B, v);
+   OnRev (OUT_C, v);
+}
+
+void tournerDroite (int v)
+{
+   OnFwd (OUT_C, v);
+   OnRev (OUT_B, v);
+}
+
+void serre_pince ()
+{
+   OnRev (OUT_A, vitesse_pince);
+}
+
+void relache_pince ()
+{
+   OnFwd (OUT_A, vitesse_pince);
+}
+
+void stop_pince ()
+{
+   Off (OUT_A);
+}
+
+int ultrason ()
+{
+   return SensorUS (IN_4);
+}
+
+bool contact ()
+{
+   return SENSOR_1;
+}
+
+int max (int a, int b)
+{
+   return (a > b) ? a : b;
+}
+
+void affiche_int (string description, int N, int y, bool clear)
+{
+   string N_str = NumToStr(N);
+   string msg = StrCat(description, ": ", N_str);
+   DrawTextType dtArgs;
+   dtArgs.Location.X = 0;
+   dtArgs.Location.Y = y;
+   dtArgs.Text = msg;
+   if (clear)
+      dtArgs.Options = 0x01;
+   else
+      dtArgs.Options = 0x00;
+   SysDrawText(dtArgs);
+}
+
+#define GEN_TIME_EQUALITY(CMP, NAME)                                           \
+bool NAME##_time (long a, long b, int time_required, long& last)               \
+{                                                                              \
+   if (! (a CMP b))                                                            \
+   {                                                                           \
+      last = -1;                                                               \
+      return false;                                                            \
+   }                                                                           \
+   if (last < 0)                                                               \
+      last = CurrentTick ();                                                   \
+   long tmp = CurrentTick () - last;                                           \
+   return ((tmp >= time_required) ? true : false);                             \
+   }
+
+GEN_TIME_EQUALITY (==, equals)
+GEN_TIME_EQUALITY (!=, different)
+GEN_TIME_EQUALITY (<, lower)
+GEN_TIME_EQUALITY (>, greater)
+GEN_TIME_EQUALITY (<=, le)
+GEN_TIME_EQUALITY (>=, ge)
+
+#undef GEN_TIME_EQUALITY
+
+void WaitForMotorStopped (int motor, int stop_time)
+{
+   long oldTacho = abs (MotorTachoCount (motor));
+   long last = -1;
+   while (!equals_time (abs (oldTacho), abs (MotorTachoCount(motor)),
+                        stop_time, last))
+      oldTacho = abs (MotorTachoCount(motor));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Robot.                                                                     //
+////////////////////////////////////////////////////////////////////////////////
+int vitesse_prop (int vitesse)
+{
+   return max (vitesse*ultrason ()/255, vitesse*2/3);
+}
+
+void avance_prop (int vitesse)
+{
+   avance (vitesse_prop (vitesse));
+}
+
+void evitement_obstracle (int vitesse)
+{
+   const int dist_obst = 50;
+   
+   if (ultrason () > dist_obst)
+      return;
+   
+   int sens = random (2);
+   
+   if (sens == 0)
+      tournerGauche (vitesse*3/2);
+   else
+       tournerDroite (vitesse*3/2);
+
+   long last = -1;
+   while (!ge_time (ultrason (), dist_obst, 500, last))
+   {}
+   
+   /*
+   if (sens == 0)
+      sens = -1;
+   RotateMotor (OUT_B, vitesse, -1 * sens * 10);
+   RotateMotor (OUT_C, vitesse, sens * 10);
+   WaitForMotorStopped (OUT_A, 500);
+   */
+   avance_prop (vitesse);
+}
+
+void initialisation_pince ()
+{
+   serre_pince ();
+   WaitForMotorStopped (OUT_A, 500);
+   RotateMotor (OUT_A, vitesse_pince, 30);
+   WaitForMotorStopped (OUT_A, 500);
+   while (true){}
+}
+
+void attrape_pince (int& tps_contact, int vitesse)
+{
+   if (tps_contact != -1)
+   {
+      int tps = CurrentTick () - tps_contact;
+      if (tps < 6000)
+         return;
+      stop_roues ();
+      RotateMotor(OUT_A, vitesse_pince, 30);
+      WaitForMotorStopped (OUT_A, 500);
+      stop_pince ();
+      avance_prop (vitesse);
+      tps_contact = -1;
+      return;
+   }
+   if (! contact ())
+      return;
+   stop_roues ();
+   serre_pince ();
+   WaitForMotorStopped (OUT_A, 500);
+   avance_prop (vitesse);
+   tps_contact = CurrentTick ();
+   return;
+}
+
+// Tâche principale.
+task main ()
+{
+   int vitesse = 75;
+
+   PlayFile ("Hello.rso");
+   initialisation ();
+   initialisation_pince ();
+  
+   int tps_contact = -1;
+  
+   avance_prop (vitesse);
+   while (true)
+   {
+      affiche_int ("vitesse", vitesse_prop (vitesse), LCD_LINE1, true);
+      evitement_obstracle (vitesse);
+      attrape_pince (tps_contact, vitesse);
+   }
+}
+
