@@ -14,12 +14,12 @@ void initialisation ()
 ////////////////////////////////////////////////////////////////////////////////
 void avance (int v)
 {
-   OnFwd (OUT_BC, v);
+   OnFwdSync (OUT_BC, v, 0);
 }
 
 void recule (int v)
 {
-   OnRev (OUT_BC, v);
+   OnRevSync (OUT_BC, v, 0);
 }
 
 void stop_roues ()
@@ -27,16 +27,14 @@ void stop_roues ()
    Off (OUT_BC);
 }
 
-void tournerGauche (int v)
+void tourner_gauche (int v)
 {
-   OnFwd (OUT_B, v);
-   OnRev (OUT_C, v);
+   OnRevSync(OUT_BC, v, -100);
 }
 
-void tournerDroite (int v)
+void tourner_droite (int v)
 {
-   OnFwd (OUT_C, v);
-   OnRev (OUT_B, v);
+   OnRevSync(OUT_BC, v, 100);
 }
 
 void serre_pince ()
@@ -109,11 +107,11 @@ GEN_TIME_EQUALITY (>=, ge)
 
 void WaitForMotorStopped (int motor, int stop_time)
 {
-   long oldTacho = abs (MotorTachoCount (motor));
+   long oldRC = MotorRotationCount (motor);
    long last = -1;
-   while (!equals_time (abs (oldTacho), abs (MotorTachoCount(motor)),
+   while (!equals_time (oldRC, MotorRotationCount (motor),
                         stop_time, last))
-      oldTacho = abs (MotorTachoCount(motor));
+      oldRC = MotorRotationCount (motor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,21 +137,14 @@ void evitement_obstracle (int vitesse)
    int sens = random (2);
    
    if (sens == 0)
-      tournerGauche (vitesse*3/2);
+      tourner_gauche (vitesse*3/2);
    else
-       tournerDroite (vitesse*3/2);
+       tourner_droite (vitesse*3/2);
 
    long last = -1;
-   while (!ge_time (ultrason (), dist_obst, 500, last))
+   while (!ge_time (ultrason (), dist_obst, 10, last))
    {}
-   
-   /*
-   if (sens == 0)
-      sens = -1;
-   RotateMotor (OUT_B, vitesse, -1 * sens * 10);
-   RotateMotor (OUT_C, vitesse, sens * 10);
-   WaitForMotorStopped (OUT_A, 500);
-   */
+
    avance_prop (vitesse);
 }
 
@@ -163,7 +154,6 @@ void initialisation_pince ()
    WaitForMotorStopped (OUT_A, 500);
    RotateMotor (OUT_A, vitesse_pince, 30);
    WaitForMotorStopped (OUT_A, 500);
-   while (true){}
 }
 
 void attrape_pince (int& tps_contact, int vitesse)
