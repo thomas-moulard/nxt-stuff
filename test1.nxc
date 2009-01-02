@@ -127,11 +127,11 @@ void avance_prop (int vitesse)
    avance (vitesse_prop (vitesse));
 }
 
-void evitement_obstracle (int vitesse)
+void evitement_obstracle (int vitesse, long& last)
 {
    const int dist_obst = 50;
    
-   if (ultrason () > dist_obst)
+   if (ge_time (ultrason (), dist_obst, 10, last))
       return;
    
    int sens = random (2);
@@ -141,8 +141,8 @@ void evitement_obstracle (int vitesse)
    else
        tourner_droite (vitesse*3/2);
 
-   long last = -1;
-   while (!ge_time (ultrason (), dist_obst, 10, last))
+   long lastEnd = -1;
+   while (!ge_time (ultrason (), dist_obst, 10, lastEnd))
    {}
 
    avance_prop (vitesse);
@@ -152,6 +152,7 @@ void initialisation_pince ()
 {
    serre_pince ();
    WaitForMotorStopped (OUT_A, 500);
+   ResetBlockTachoCount (OUT_A);
    RotateMotor (OUT_A, vitesse_pince, 30);
    WaitForMotorStopped (OUT_A, 500);
 }
@@ -185,6 +186,7 @@ void attrape_pince (int& tps_contact, int vitesse)
 task main ()
 {
    int vitesse = 75;
+   long last = -1;
 
    PlayFile ("Hello.rso");
    initialisation ();
@@ -195,8 +197,9 @@ task main ()
    avance_prop (vitesse);
    while (true)
    {
-      affiche_int ("vitesse", vitesse_prop (vitesse), LCD_LINE1, true);
-      evitement_obstracle (vitesse);
+      affiche_int ("vitesse", vitesse_prop (vitesse), LCD_LINE1, false);
+      affiche_int ("ultrason", ultrason (), LCD_LINE2, true);
+      evitement_obstracle (vitesse, last);
       attrape_pince (tps_contact, vitesse);
    }
 }
